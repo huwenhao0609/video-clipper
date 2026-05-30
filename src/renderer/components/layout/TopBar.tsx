@@ -1,6 +1,6 @@
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useAppStore } from '../../stores/useAppStore'
-import { Save, FolderOpen, FilePlus, Video, Undo2, Redo2 } from 'lucide-react'
+import { Save, FolderOpen, FilePlus, Video, Undo2, Redo2, Wand2 } from 'lucide-react'
 
 export function TopBar(): JSX.Element {
   const projectName = useProjectStore((s) => s.project.name)
@@ -71,9 +71,11 @@ export function TopBar(): JSX.Element {
 
       <div style={{ width: 1, height: 24, background: 'var(--color-border)', margin: '0 4px' }} />
 
+      <div style={{ width: 1, height: 24, background: 'var(--color-border)', margin: '0 4px' }} />
+
       <ToolbarButton
-        icon={<span style={{ fontSize: 12, fontWeight: 600 }}>模板</span>}
-        label="模板向导"
+        icon={<Wand2 size={16} />}
+        label="一键快剪"
         onClick={() => setShowTemplateWizard(!showTemplateWizard)}
         active={showTemplateWizard}
       />
