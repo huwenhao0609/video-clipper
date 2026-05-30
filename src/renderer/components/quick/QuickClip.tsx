@@ -2,7 +2,8 @@ import { useState, useRef, useCallback } from 'react'
 import { useAppStore } from '../../stores/useAppStore'
 import { useMediaStore } from '../../stores/useMediaStore'
 import { useProjectStore } from '../../stores/useProjectStore'
-import { Upload, Play, Pause, Sparkles, Wand2, Film, ChevronRight } from 'lucide-react'
+import { Upload, Play, Pause, Sparkles, Wand2, Film, ChevronRight, Loader2 } from 'lucide-react'
+import { processVideo, downloadBlob } from '../../services/ffmpeg-wasm'
 import type { MediaAsset } from '../../types'
 
 type Step = 'select' | 'edit' | 'done'
@@ -101,49 +102,32 @@ export function QuickClip(): JSX.Element {
   }
 
   // Export
+  const [exportProgress, setExportProgress] = useState(0)
   const handleExport = async () => {
     if (!videoFile) return
     setIsExporting(true)
+    setExportProgress(0)
 
     try {
-      if (window.electronAPI) {
-        // In Electron: use FFmpeg via IPC
-        const outputPath = await window.electronAPI.project.export(
-          { filePath: videoFile.filePath, productName, productPrice, style: selectedStyle },
-          { projectId: videoFile.id, outputPath: '', width: 1080, height: 1080, fps: 30, quality: 23 }
-        )
+      // Fetch the blob URL as a File for WASM FFmpeg
+      const response = await fetch(videoFile.filePath)
+      const blob = await response.blob()
+      const file = new File([blob], videoFile.fileName, { type: blob.type || 'video/mp4' })
 
-        if (selectedStyle !== 'fast' && (productName || productPrice)) {
-          const textOverlay = [
-            productName && `text='${productName}':fontsize=52:fontcolor=white:x=(w-text_w)/2:y=80`,
-            productPrice && `text='${productPrice}':fontsize=40:fontcolor=#FFD700:x=(w-text_w)/2:y=h-120`
-          ].filter(Boolean).join(',')
+      // Process with WASM FFmpeg
+      const resultBlob = await processVideo(file, {
+        productName: selectedStyle !== 'fast' ? productName : undefined,
+        productPrice: selectedStyle !== 'fast' ? productPrice : undefined,
+        outputWidth: 1080,
+        outputHeight: 1080,
+        onProgress: (percent) => setExportProgress(percent)
+      })
 
-          if (textOverlay) {
-            await window.electronAPI.ffmpeg.textOverlay({
-              inputPath: videoFile.filePath,
-              outputPath,
-              text: [productName, productPrice].filter(Boolean).join(' | '),
-              fontSize: 52,
-              fontColor: '#FFFFFF',
-              x: -1, // center
-              y: 80
-            })
-          }
-        }
-
-        await window.electronAPI.ffmpeg.export({
-          projectId: videoFile.id,
-          outputPath,
-          width: 1080,
-          height: 1080,
-          fps: 30,
-          quality: 23
-        })
-      } else {
-        // Fallback: just show success in browser dev mode
-        await new Promise(resolve => setTimeout(resolve, 1500))
-      }
+      // Download the result
+      const outputFilename = productName
+        ? `${productName}.mp4`
+        : `output_${Date.now()}.mp4`
+      downloadBlob(resultBlob, outputFilename)
 
       setExportDone(true)
       setStep('done')
@@ -152,6 +136,7 @@ export function QuickClip(): JSX.Element {
       alert('导出失败: ' + (err.message || '未知错误'))
     } finally {
       setIsExporting(false)
+      setExportProgress(0)
     }
   }
 
@@ -415,9 +400,38 @@ export function QuickClip(): JSX.Element {
                   transition: 'all 0.15s'
                 }}
               >
-                <Sparkles size={20} />
-                {isExporting ? '正在生成视频...' : '一键生成视频'}
+                {isExporting ? (
+                  <>
+                    <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+                    生成中 {exportProgress}%
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={20} />
+                    一键生成视频
+                  </>
+                )}
               </button>
+
+              {/* Progress Bar */}
+              {isExporting && (
+                <div style={{
+                  width: '100%',
+                  height: 4,
+                  background: 'var(--color-bg-hover)',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  marginTop: 4
+                }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${exportProgress}%`,
+                    background: 'var(--color-accent)',
+                    borderRadius: 2,
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+              )}
 
               {/* Switch to advanced */}
               <button
