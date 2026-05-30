@@ -1,0 +1,21 @@
+appId: com.videoclipper.app
+productName: Video Clipper
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - out/**/*
+  - resources/**/*
+  - templates/**/*
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  language: 2052
+extraResources:
+  - from: resources/
+    to: resources/
